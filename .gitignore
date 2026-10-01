@@ -1,0 +1,11 @@
+venv/
+.venv/
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+data/cache/
+*.graphml
+ml/models/
+.idea/
+.vscode/
