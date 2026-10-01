@@ -94,6 +94,20 @@ class TestLogin:
         })
         assert resp.status_code == 401
 
+    async def test_login_oauth2_form_success(self, client, sample_register_payload):
+        """OAuth2 form login via /token endpoint."""
+        await client.post("/api/v1/auth/register", json=sample_register_payload)
+        resp = await client.post("/api/v1/auth/token", data={
+            "username": sample_register_payload["email"],
+            "password": sample_register_payload["password"],
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "access_token" in data
+        assert data["token_type"] == "bearer"
+        assert data["role"] == "woman"
+
+
 
 @pytest.mark.asyncio
 class TestProtectedEndpoints:
@@ -189,3 +203,56 @@ class TestTrustedContacts:
     async def test_contacts_without_auth(self, client):
         resp = await client.get("/api/v1/users/me/contacts")
         assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+class TestRoleBasedAccess:
+    async def test_require_roles_allows_matching_role(self):
+        import uuid
+        from app.core.security import create_access_token, require_roles
+
+        token = create_access_token(uuid.uuid4(), "authority")
+        checker = require_roles("authority", "volunteer")
+        payload = await checker(token)
+        assert payload["role"] == "authority"
+
+    async def test_require_roles_denies_unauthorized_role(self):
+        import uuid
+        from fastapi import HTTPException
+        from app.core.security import create_access_token, require_roles
+
+        token = create_access_token(uuid.uuid4(), "woman")
+        checker = require_roles("authority")
+        with pytest.raises(HTTPException) as exc_info:
+            await checker(token)
+        assert exc_info.value.status_code == 403
+
+
+@pytest.mark.asyncio
+class TestRateLimiter:
+    async def test_rate_limiter_blocks_excessive_requests(self):
+        from starlette.requests import Request
+        from starlette.responses import Response
+        from app.core.middleware import RateLimitMiddleware
+
+        app_mock = lambda scope, receive, send: None
+        mw = RateLimitMiddleware(app_mock, max_requests=2, window_seconds=60)
+
+        async def call_next(req):
+            return Response("ok", status_code=200)
+
+        scope = {
+            "type": "http",
+            "method": "GET",
+            "path": "/api/v1/test",
+            "headers": [],
+            "client": ("127.0.0.1", 12345),
+        }
+        req = Request(scope)
+        res1 = await mw.dispatch(req, call_next)
+        assert res1.status_code == 200
+        res2 = await mw.dispatch(req, call_next)
+        assert res2.status_code == 200
+        res3 = await mw.dispatch(req, call_next)
+        assert res3.status_code == 429
+

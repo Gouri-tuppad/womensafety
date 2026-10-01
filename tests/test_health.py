@@ -23,10 +23,34 @@ class TestHealth:
         """Without real DB/Redis, health should report degraded."""
         resp = await client.get("/api/v1/health")
         data = resp.json()
-        # In test env, Redis is not running, so at least one component
-        # should be unhealthy → status = degraded
-        # (DB may be healthy since SQLite is in-memory)
         assert data["status"] in ("healthy", "degraded")
+
+    async def test_health_mocked_services_healthy(self, client, monkeypatch):
+        """When DB and Redis respond successfully, health should report healthy."""
+        from unittest.mock import AsyncMock, MagicMock
+        from app.api.v1 import health
+
+        mock_conn = AsyncMock()
+        mock_conn.execute.return_value = None
+        mock_connect = MagicMock()
+        mock_connect.__aenter__.return_value = mock_conn
+        mock_connect.__aexit__.return_value = None
+
+        mock_engine = MagicMock()
+        mock_engine.connect.return_value = mock_connect
+        monkeypatch.setattr(health, "engine", mock_engine)
+
+        mock_redis = MagicMock()
+        mock_redis.ping.return_value = True
+        monkeypatch.setattr(health, "get_redis", MagicMock(return_value=mock_redis))
+
+        resp = await client.get("/api/v1/health")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "healthy"
+        assert data["components"]["database"] == "healthy"
+        assert data["components"]["redis"] == "healthy"
+
 
     async def test_root_endpoint(self, client):
         """Root should return app info."""

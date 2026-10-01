@@ -93,25 +93,27 @@ async def _authenticate(email: str, password: str, db: AsyncSession) -> TokenRes
 @router.post(
     "/login",
     response_model=TokenResponse,
-    summary="Login via OAuth2 form (Swagger-compatible)",
-    description="Send ``username`` (email) and ``password`` as form fields.",
+    summary="Login and receive a JWT",
+    description="Accepts JSON body with email and password.",
 )
-async def login_form(
-    form: OAuth2PasswordRequestForm = Depends(),
-    db: AsyncSession = Depends(get_db),
-):
-    """OAuth2-compatible form login (used by Swagger Authorize button)."""
-    return await _authenticate(form.username, form.password, db)
-
-
-@router.post(
-    "/login/json",
-    response_model=TokenResponse,
-    summary="Login via JSON body",
-)
-async def login_json(
+async def login(
     body: LoginRequest,
     db: AsyncSession = Depends(get_db),
 ):
     """JSON-body login for API clients."""
     return await _authenticate(body.email, body.password, db)
+
+
+@router.post(
+    "/token",
+    response_model=TokenResponse,
+    summary="OAuth2 form token endpoint",
+    description="OAuth2-compatible endpoint for Swagger Authorize button.",
+)
+async def login_token(
+    form: OAuth2PasswordRequestForm = Depends(),
+    db: AsyncSession = Depends(get_db),
+):
+    """OAuth2-compatible form login."""
+    return await _authenticate(form.username, form.password, db)
+
