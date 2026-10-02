@@ -33,7 +33,7 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://safeway:safeway@db:5432/safeway
-      DATABASE_URL_SYNC: postgresql://safeway:safeway@db:5432/safeway
+      DATABASE_URL_SYNC: postgresql+psycopg://safeway:safeway@db:5432/safeway
       REDIS_URL: redis://redis:6379/0
     ports:
       - "8000:8000"

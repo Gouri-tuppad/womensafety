@@ -86,7 +86,7 @@ class Settings(BaseSettings):
     )
     # Sync URL used by Alembic & seeding scripts
     DATABASE_URL_SYNC: str = Field(
-        default="postgresql://safeway:safeway@localhost:5432/safeway",
+        default="postgresql+psycopg://safeway:safeway@localhost:5432/safeway",
         description="Sync database URL (Alembic, seed scripts).",
     )
 
