@@ -35,7 +35,12 @@ class Trip(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
 
     status: Mapped[TripStatus] = mapped_column(
-        Enum(TripStatus, name="trip_status", create_constraint=True),
+        Enum(
+            TripStatus,
+            name="trip_status",
+            create_constraint=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         default=TripStatus.PLANNED, nullable=False,
     )
 

@@ -561,19 +561,29 @@ def ingest_zone(zone: str, db_url: str) -> dict:
         session.commit()
         log.info("Database commit complete.")
 
-    # 7. Summary
-    lit_count = sum(
-        1
-        for _, _, _, d in G.edges(data=True, keys=True)
-        if str(d.get("lit", "")).lower() in ("yes", "limited")
-    )
-    lit_share = round(lit_count / max(n_segs, 1), 3)
+    # 7. Summary — query the DB for actual lit_ratio statistics
+    #    (The raw graph edge 'lit' attribute is often absent after OSMnx
+    #     simplification; the real lit_ratio was computed per-segment above.)
+    with Session(engine) as session:
+        row = session.execute(
+            text(
+                "SELECT COUNT(*) FILTER (WHERE lit_ratio > 0) AS lit_count, "
+                "AVG(lit_ratio) AS avg_ratio "
+                "FROM road_segments WHERE zone = :z"
+            ),
+            {"z": zone},
+        ).one()
+        n_lit = row.lit_count or 0
+        avg_lit = round(float(row.avg_ratio or 0.0), 4)
+
+    lit_share = round(n_lit / max(n_segs, 1), 3)
 
     summary = {
         "zone": zone,
         "segment_count": n_segs,
         "poi_counts": poi_counts,
         "lit_segment_share": lit_share,
+        "avg_lit_ratio": avg_lit,
         "safe_haven_count": len(safe_haven_points),
     }
     _print_summary(summary)
@@ -585,7 +595,8 @@ def _print_summary(s: dict) -> None:
     print(f"  OSM INGESTION SUMMARY - zone={s['zone']}")
     print("=" * 60)
     print(f"  Road segments     : {s['segment_count']:,}")
-    print(f"  Lit segment share : {s['lit_segment_share']:.1%}")
+    print(f"  Lit segment share : {s['lit_segment_share']:.1%}  (lit_ratio > 0)")
+    print(f"  Avg lit_ratio     : {s.get('avg_lit_ratio', 0.0):.4f}")
     print(f"  Safe havens       : {s['safe_haven_count']}")
     print("  POI counts by category:")
     for cat, cnt in sorted(s["poi_counts"].items()):

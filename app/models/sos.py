@@ -34,7 +34,12 @@ class SOSEvent(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
 
     status: Mapped[SOSStatus] = mapped_column(
-        Enum(SOSStatus, name="sos_status", create_constraint=True),
+        Enum(
+            SOSStatus,
+            name="sos_status",
+            create_constraint=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         default=SOSStatus.COUNTDOWN, nullable=False,
     )
     trigger_type: Mapped[str] = mapped_column(

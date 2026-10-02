@@ -58,7 +58,8 @@ def run_all(zone: str, csv_path: Path | None = None) -> None:
     print(f"  STEP 2 COMPLETE  zone={zone}")
     print("#" * 60)
     print(f"  Segments          : {osm_summary['segment_count']:,}")
-    print(f"  Lit share         : {osm_summary['lit_segment_share']:.1%}")
+    print(f"  Lit share         : {osm_summary['lit_segment_share']:.1%}  (lit_ratio > 0)")
+    print(f"  Avg lit_ratio     : {osm_summary.get('avg_lit_ratio', 0.0):.4f}")
     print(f"  Safe havens       : {osm_summary['safe_haven_count']}")
     print("  POIs by category  :")
     for cat, cnt in sorted(osm_summary["poi_counts"].items()):

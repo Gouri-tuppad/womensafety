@@ -46,7 +46,12 @@ class Incident(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     source: Mapped[IncidentSource] = mapped_column(
-        Enum(IncidentSource, name="incident_source", create_constraint=True),
+        Enum(
+            IncidentSource,
+            name="incident_source",
+            create_constraint=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         nullable=False,
     )
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -89,7 +94,12 @@ class Report(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
 
     status: Mapped[ReportStatus] = mapped_column(
-        Enum(ReportStatus, name="report_status", create_constraint=True),
+        Enum(
+            ReportStatus,
+            name="report_status",
+            create_constraint=True,
+            values_callable=lambda e: [m.value for m in e],
+        ),
         default=ReportStatus.PENDING,
         nullable=False,
     )
