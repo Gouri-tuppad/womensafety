@@ -86,44 +86,43 @@ python -m app.ml.model          # train + evaluate
 python -m app.ml.model --shap   # with SHAP explanations
 ```
 
-## 📡 API Endpoints
+## 📡 API Endpoints (Step 3: Safety Scoring & Routing)
 
-### Safest Route
+### 1. Compute Route (Fastest vs Safest)
 ```http
-POST /api/v1/routes/safest
+POST /route
+Content-Type: application/json
+
 {
-  "origin": {"lat": 13.02, "lon": 77.51},
-  "destination": {"lat": 13.03, "lon": 77.52},
-  "departure_time": "2024-06-15T23:30:00+05:30"  // optional
+  "origin": {"lat": 13.0330, "lon": 77.5332},
+  "destination": {"lat": 13.0220, "lon": 77.5034},
+  "depart_time": "2026-10-02T23:00:00+05:30",
+  "profile": "woman_night"
 }
 ```
 
-### SOS Trigger
-```http
-POST /api/v1/sos/trigger
-{
-  "user_id": "uuid",
-  "latitude": 13.025,
-  "longitude": 77.515
-}
-```
+Response includes:
+- `fastest`: Distance, duration, safety score, colour-coded segments, polyline
+- `safest`: Distance, duration, safety score, colour-coded segments, polyline
+- `routes_differ`: `true` when safest navigates away from high-risk streets
+- `safe_havens_near_safest`: Hospitals, police stations, metro & bus stops within 300 m
+- `comparison`: Summary statistics (e.g., `"+2.6% longer, 1.6x more lit, +8.2 safety pts"`)
 
-### Start Trip
-```http
-POST /api/v1/trips/start
-{
-  "user_id": "uuid",
-  "origin_lat": 13.02, "origin_lon": 77.51,
-  "dest_lat": 13.03, "dest_lon": 77.52
-}
-```
+*(Also available under `/api/v1/route`)*
 
-### Dashboard
+### 2. Safety Heatmap Grid (H3 Resolution 9)
 ```http
-GET /api/v1/dashboard/stats
-GET /api/v1/dashboard/heatmap
-GET /api/v1/dashboard/safety-overview
+GET /safety/heatmap?zone=peenya&hour=23
 ```
+Returns an H3 risk grid (resolution 9) with `risk_score` (0–1 composite), `crime_risk`, `darkness_risk`, `isolation_risk`, and `crowd_count`, designed for time-slider UI map overlays.
+
+*(Also available under `/api/v1/safety/heatmap`)*
+
+### 3. Edge Weight Precomputation
+```http
+GET /safety/precompute?hour=23&is_weekend=false
+```
+Precomputes and caches safety edge weights in Redis for sub-second routing performance (< 100 ms).
 
 ## ⚙️ Configuration
 
@@ -131,26 +130,41 @@ All settings via environment variables (see `.env.example`):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ZONE` | `peenya` | Active zone: `peenya` or `subramanyapura` |
-| `ALPHA_CRIME` | `0.4` | Crime risk weight in safety formula |
-| `BETA_DARKNESS` | `0.3` | Darkness risk weight |
-| `GAMMA_ISOLATION` | `0.2` | Isolation risk weight |
-| `DELTA_ACTIVITY` | `0.1` | Activity score weight (reduces cost) |
-| `SOS_COOLDOWN_SECONDS` | `30` | Minimum interval between SOS triggers |
-| `TRIP_DEVIATION_METERS` | `200` | Route deviation alert threshold |
-| `SMS_PROVIDER` | `mock` | SMS backend (`mock` = no API keys needed) |
+| `ZONE` | `peenya` | Active zone: `peenya` (Scope: Peenya only) |
+| `ALPHA_CRIME` | `0.4` | Default CrimeRisk weight in safety formula |
+| `BETA_DARKNESS` | `0.3` | Default DarknessRisk weight |
+| `GAMMA_ISOLATION` | `0.2` | Default IsolationRisk weight |
+| `DELTA_ACTIVITY` | `0.1` | Default ActivityScore weight (reduces cost) |
 
-## 🗺️ Demo Zones
+## 🗺️ Demo Zone & Fixture Routes (Peenya Only)
+
+> **SCOPE**: SafeWay backend currently focuses **strictly on the Peenya zone**.
 
 ### Peenya Industrial Area
-- **Character**: Factories, warehouses, garment units, long compound walls
-- **Risk pattern**: Very empty and dark at night; busy during shift changes (~06-07, 14-15, 22-23)
-- **Bbox**: N 13.05, S 13.00, E 77.55, W 77.48
+- **Bounding Box**: North 13.05, South 13.00, East 77.55, West 77.48
+- **Character**: Factories, warehouses, garment units, long compound walls, sparse lighting
+- **Shift Changes**: Peak crowd and factory shift turnover (~06:00–07:00, 14:00–15:00, 22:00–23:00)
 
-### Subramanyapura
-- **Character**: Residential with metro station, Kanakapura Road, interior lanes, vacant plots
-- **Risk pattern**: Thin crowds after ~22:00; incidents near vacant plots and lake edges
-- **Bbox**: N 12.91, S 12.86, E 77.58, W 77.52
+### Demo Route 1: Bagalagunte to Peenya 1st Stage South-East (Across Industrial Area)
+- **Origin**: `(13.0450, 77.5050)` [Bagalagunte / MEI Colony]
+- **Destination**: `(13.0150, 77.5300)` [Peenya 1st Stage South-East]
+- **Behavior at 11 PM (23:00)**:
+  - **Fastest**: 5,718.1 m (safety score 56.2) – cuts directly through unlit, isolated industrial alleys.
+  - **Safest**: 6,395.9 m (safety score 67.7) – detours along well-lit, active arterial corridors.
+  - **Metrics**: **+11.9% longer**, **+11.5 safety pts gain**, 59% lower crime exposure, avoids isolated roads (0% vs 15%), 1 police station nearby.
+
+### Demo Route 2: Dasarahalli Metro to Peenya 1st Stage South (Across Industrial Area)
+- **Origin**: `(13.0440, 77.5130)` [Dasarahalli Metro]
+- **Destination**: `(13.0120, 77.5320)` [Peenya 1st Stage South]
+- **Behavior at 11 PM (23:00)**:
+  - **Fastest**: 4,920.3 m (safety score 50.6) – traverses high-crime, dark factory roads.
+  - **Safest**: 5,410.3 m (safety score 65.0) – navigates around dangerous segments via active corridors.
+  - **Metrics**: **+10.0% longer**, **+14.4 safety pts gain**, 48% lower crime exposure, 1 police station nearby.
+
+### Additional Peenya Route: Peenya Metro to Peenya 2nd Stage (NTTF / 12th Cross)
+- **Origin**: `(13.0330, 77.5332)` [Peenya Metro]
+- **Destination**: `(13.0220, 77.5034)` [Peenya 2nd Stage]
+- **Behavior**: Safest route differs at 11 PM vs 6 PM due to nightfall and crowd shifts.
 
 ## 📊 Safety Cost Formula
 
