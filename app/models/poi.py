@@ -24,6 +24,8 @@ class POICategory(str, PyEnum):
     METRO = "metro"
     PHARMACY = "pharmacy"
     FACTORY_GATE = "factory_gate"
+    POLICE = "police"
+    HOSPITAL = "hospital"
 
 
 class POI(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -31,7 +33,13 @@ class POI(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     category: Mapped[POICategory] = mapped_column(
-        Enum(POICategory, name="poi_category", create_constraint=True),
+        Enum(
+            POICategory,
+            name="poi_category",
+            create_constraint=True,
+            # Values explicitly listed so SQLAlchemy doesn't try to re-create the type
+            values_callable=lambda e: [m.value for m in e],
+        ),
         nullable=False,
     )
 

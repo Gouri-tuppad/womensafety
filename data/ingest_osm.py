@@ -130,18 +130,16 @@ POI_SPECS: list[dict[str, Any]] = [
         "name_prefix": "Metro",
     },
     {
-        "category": POICategory.SHOP,
+        "category": POICategory.POLICE,
         "safe_haven": True,
         "overpass": 'node["amenity"="police"]',
         "name_prefix": "Police station",
-        "override_category": "police",
     },
     {
-        "category": POICategory.SHOP,
+        "category": POICategory.HOSPITAL,
         "safe_haven": True,
         "overpass": 'node["amenity"="hospital"]',
         "name_prefix": "Hospital",
-        "override_category": "hospital",
     },
     {
         "category": POICategory.FACTORY_GATE,
@@ -470,14 +468,6 @@ def ingest_zone(zone: str, db_url: str) -> dict:
         cat = spec["category"]
         safe = spec["safe_haven"]
         name_pfx = spec["name_prefix"]
-
-        override = spec.get("override_category")
-        if override == "police":
-            cat = POICategory.SHOP
-            name_pfx = "Police station"
-        elif override == "hospital":
-            cat = POICategory.SHOP
-            name_pfx = "Hospital"
 
         log.info("Fetching %s...", name_pfx)
         query = _build_poi_query(spec, south, west, north, east)
