@@ -1,0 +1,5 @@
+lat,lon,type,severity,timestamp,source,description
+13.0200,77.5100,harassment,2,2024-08-15T22:30:00,official,"Street harassment reported near factory gate"
+13.0180,77.5090,chain_snatching,3,2024-09-02T21:15:00,news,"Chain snatching incident on industrial road"
+12.8850,77.5530,stalking,2,2024-07-20T23:00:00,user,"Followed by unknown person near lake area"
+12.8820,77.5510,robbery,4,2024-10-01T00:30:00,official,"Robbery on interior lane"

@@ -1,4 +1,8 @@
-.PHONY: help up down logs migrate seed train test lint dev
+.PHONY: help up down logs migrate seed ingest simulate_crowd train test lint dev
+
+# Variables (override on command line: make seed ZONE=subramanyapura)
+ZONE ?= peenya
+CSV  ?=
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -16,8 +20,14 @@ logs: ## Tail API logs
 migrate: ## Run Alembic head migration
 	alembic upgrade head
 
-seed: ## Seed synthetic data
-	python -m app.data.seed
+seed: ## Full Step 2 pipeline: OSM ingest + crime seed + crowd simulate (ZONE=peenya|subramanyapura CSV=path)
+	python -m data.seed $(ZONE) $(if $(CSV),--csv $(CSV),)
+
+ingest: ## Download OSM graph and POIs for ZONE only
+	python -m data.ingest_osm $(ZONE)
+
+simulate_crowd: ## Simulate hourly H3 crowd counts for ZONE only
+	python -m data.simulate_crowd $(ZONE)
 
 train: ## Train the ML safety model
 	python -m app.ml.model
@@ -26,7 +36,7 @@ test: ## Run pytest suite
 	pytest tests/ -v --tb=short
 
 lint: ## Run ruff linter
-	ruff check app/ tests/
+	ruff check app/ tests/ data/
 
 dev: ## Run API locally (no Docker)
 	uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
