@@ -139,6 +139,17 @@ def predict_risk(
         if sid not in result:
             result[sid] = 0.5
 
+    # Incorporate live EMA feedback adjustments if present in Redis
+    if redis_client is not None:
+        for sid in segment_ids:
+            try:
+                raw_ema = redis_client.get(f"segment:ema_risk:{sid}")
+                if raw_ema:
+                    ema_risk = float(raw_ema)
+                    result[sid] = 0.85 * float(result[sid]) + 0.15 * ema_risk
+            except Exception:
+                pass
+
     return {sid: round(float(result[sid]), 4) for sid in segment_ids}
 
 

@@ -320,6 +320,16 @@ def build_feature_table(
             "WHERE zone = :z ORDER BY date_utc DESC LIMIT 500000"
         ), {"z": zone}).fetchall()
 
+        # 5. User Feedback (training signal)
+        try:
+            feedback_rows = conn.execute(text(
+                "SELECT f.safety_rating, t.route_geojson "
+                "FROM feedback f JOIN trips t ON f.trip_id = t.id "
+                "WHERE t.route_geojson IS NOT NULL"
+            )).fetchall()
+        except Exception:
+            feedback_rows = []
+
     # Build crowd lookup: {(h3_index, hour): count}
     crowd_lookup: dict[tuple[str, int], int] = {}
     for r in crowd_rows:
@@ -327,6 +337,27 @@ def build_feature_table(
         key = (m["h3_index"], int(m["hour_utc"]))
         if key not in crowd_lookup:
             crowd_lookup[key] = int(m["count"])
+
+    # Build feedback lookup: {osm_id: [normalized_risk, ...]}
+    feedback_by_segment: dict[int, list[float]] = {}
+    for fb in feedback_rows:
+        try:
+            s_rating = fb._mapping.get("safety_rating", 3)
+            # 1 star = 1.0 (very unsafe), 5 stars = 0.0 (very safe)
+            fb_risk = 1.0 - (float(s_rating) - 1.0) / 4.0
+            r_json = fb._mapping.get("route_geojson")
+            if isinstance(r_json, str):
+                import json as _json
+                r_json = _json.loads(r_json)
+            if isinstance(r_json, dict):
+                feats = r_json.get("features", [])
+                for f in feats:
+                    props = f.get("properties", {})
+                    osm_val = props.get("osm_id") or props.get("segment_id")
+                    if osm_val is not None:
+                        feedback_by_segment.setdefault(int(osm_val), []).append(fb_risk)
+        except Exception:
+            pass
 
     # ── Build spatial trees ───────────────────────────────────────────────
 
@@ -502,7 +533,12 @@ def build_feature_table(
                     incidents=nearby_incidents,
                 )
                 scores = scorer.score(seg_features, time_ctx)
-                feat["risk_label"] = round(scores.composite, 4)
+                base_risk = scores.composite
+                if osm_id in feedback_by_segment:
+                    fb_mean = float(np.mean(feedback_by_segment[osm_id]))
+                    feat["risk_label"] = round(0.85 * base_risk + 0.15 * fb_mean, 4)
+                else:
+                    feat["risk_label"] = round(base_risk, 4)
 
                 rows.append(feat)
 

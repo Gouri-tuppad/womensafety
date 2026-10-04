@@ -114,6 +114,9 @@ class Settings(BaseSettings):
     # ── Trip monitoring ──────────────────────────────────────────────────
     TRIP_STALE_MINUTES: int = 5
     TRIP_DEVIATION_METERS: float = 200.0
+    TRIP_UNUSUAL_STOP_MINUTES: float = 3.0
+    TRIP_ARE_YOU_OKAY_SECONDS: int = 20
+    TRIP_LOCATION_RETENTION_DAYS: int = 7
 
     # ── Provider switches ────────────────────────────────────────────────
     # "mock" implementations need no API keys.
