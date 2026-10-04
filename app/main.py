@@ -83,6 +83,8 @@ async def safeway_error_handler(request: Request, exc: SafeWayError):
 app.include_router(v1_router, prefix=settings.API_V1_PREFIX)
 from app.api.v1.route import router as route_router
 app.include_router(route_router, prefix="", tags=["Routing"])
+from app.api.v1.sos import router as sos_router
+app.include_router(sos_router, prefix="", tags=["SOS"])
 
 
 # ── Root ─────────────────────────────────────────────────────────────────────

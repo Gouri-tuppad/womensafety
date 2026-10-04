@@ -9,3 +9,4 @@ data/cache/
 ml/models/
 .idea/
 .vscode/
+data/evidence/
