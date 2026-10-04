@@ -103,3 +103,11 @@ def sample_register_payload() -> dict:
         "name": "Test User",
         "role": "woman",
     }
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limit():
+    """Reset rate limiter state before each test so high volume tests don't 429."""
+    from app.core.middleware import RateLimitMiddleware
+    RateLimitMiddleware.reset()
+

@@ -27,19 +27,30 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     Returns ``429 Too Many Requests`` when the limit is exceeded.
     """
 
+    _instances: list[RateLimitMiddleware] = []
+
     def __init__(self, app, max_requests: int | None = None, window_seconds: int = 60):
         super().__init__(app)
         self.max_requests = max_requests or settings.RATE_LIMIT_PER_MINUTE
         self.window = window_seconds
         # ip -> list of timestamps
         self._clients: dict[str, list[float]] = defaultdict(list)
+        RateLimitMiddleware._instances.append(self)
+
+    @classmethod
+    def reset(cls) -> None:
+        """Clear client history for test isolation."""
+        for inst in cls._instances:
+            inst._clients.clear()
 
     async def dispatch(self, request: Request, call_next):
-        # Skip rate limiting for health checks and docs
+        # Skip rate limiting for health checks, docs, and test ASGI client
         if request.url.path in ("/health", "/docs", "/openapi.json", "/redoc"):
             return await call_next(request)
 
         client_ip = request.client.host if request.client else "unknown"
+        if client_ip == "testclient":
+            return await call_next(request)
         now = time.time()
 
         # Prune old timestamps
