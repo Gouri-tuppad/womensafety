@@ -109,3 +109,20 @@ class EvidenceUploadResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SOSStatusResponse(BaseModel):
+    """Response returned for GET /api/v1/sos/{id} (owner status check)."""
+    sos_id: uuid.UUID
+    status: str
+    triggered_at: datetime
+    resolved_at: Optional[datetime] = None
+    trigger_type: str
+    confidence: float
+    tracking_url: str
+    tracking_token: Optional[str] = None
+    evidence_capture_requested: bool = False
+    notes: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+

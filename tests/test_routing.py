@@ -369,7 +369,7 @@ class TestRoutingAPIEndpoints:
             "depart_time": "2026-10-02T23:00:00+05:30",
             "profile": "woman_night"
         }
-        res = await client.post("/route", json=payload)
+        res = await client.post("/api/v1/route", json=payload)
         assert res.status_code == 200
         data = res.json()
         assert data["zone"] == "peenya"
@@ -379,7 +379,7 @@ class TestRoutingAPIEndpoints:
 
     async def test_get_safety_heatmap_endpoint(self, client):
         """GET /safety/heatmap returns 200 with H3 grid."""
-        res = await client.get("/safety/heatmap?zone=peenya&hour=23")
+        res = await client.get("/api/v1/safety/heatmap?zone=peenya&hour=23")
         assert res.status_code == 200
         data = res.json()
         assert data["zone"] == "peenya"
@@ -395,5 +395,5 @@ class TestRoutingAPIEndpoints:
             "depart_time": "2026-10-02T23:00:00+05:30",
             "profile": "woman_night"
         }
-        res = await client.post("/route", json=payload)
+        res = await client.post("/api/v1/route", json=payload)
         assert res.status_code == 400

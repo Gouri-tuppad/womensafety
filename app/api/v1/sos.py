@@ -40,6 +40,7 @@ from app.schemas.sos import (
     SOSLocationUpdate,
     SOSResolveRequest,
     SOSResolveResponse,
+    SOSStatusResponse,
     SOSTrackResponse,
     SOSTriggerRequest,
     SOSTriggerResponse,
@@ -80,6 +81,26 @@ async def trigger_sos_endpoint(
     )
 
 
+# ── GET /sos/{id} ────────────────────────────────────────────────────────────
+
+@router.get(
+    "/sos/{id}",
+    response_model=SOSStatusResponse,
+    summary="Get SOS Event Status",
+    description="Returns the status, timestamps, trigger_type, confidence, and tracking_url for the event owner.",
+)
+async def get_sos_status_endpoint(
+    id: uuid.UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> SOSStatusResponse:
+    return await sos_service.get_sos_status(
+        db=db,
+        sos_id=id,
+        user_id=current_user.id,
+    )
+
+
 # ── POST /sos/{id}/cancel ───────────────────────────────────────────────────
 
 @router.post(
@@ -106,6 +127,7 @@ async def cancel_sos_endpoint(
         reason=req.reason or "false_alarm",
         ip_address=ip,
     )
+
 
 
 # ── POST /sos/{id}/location ─────────────────────────────────────────────────

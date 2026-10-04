@@ -48,6 +48,7 @@ from app.schemas.sos import (
     SOSCancelResponse,
     SOSLocationUpdate,
     SOSResolveResponse,
+    SOSStatusResponse,
     SOSTrackResponse,
     SOSTriggerRequest,
     SOSTriggerResponse,
@@ -138,6 +139,8 @@ def decode_tracking_token(token: str) -> uuid.UUID:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Tracking token has expired.",
         )
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -229,7 +232,7 @@ async def trigger_sos(
                         confidence=event.confidence,
                         triggered_at=event.triggered_at,
                         tracking_token=token,
-                        tracking_url=f"/track/{token}",
+                        tracking_url=f"{settings.API_V1_PREFIX}/track/{token}",
                         evidence_capture_requested=(event.status == SOSStatus.ACTIVE),
                         is_duplicate=True,
                     )
@@ -243,11 +246,23 @@ async def trigger_sos(
     else:
         confidence = 1.0
 
-    # 3. Create SOSEvent
+    # 3. Create SOSEvent (safely check trip_id if provided)
+    valid_trip_id = None
+    if req.trip_id:
+        try:
+            from app.models.trip import Trip
+            trip = await db.get(Trip, req.trip_id)
+            if trip:
+                valid_trip_id = trip.id
+            else:
+                logger.info("Trip %s not found in DB; continuing with trip_id=None", req.trip_id)
+        except Exception as trip_err:
+            logger.warning("Trip check failed (%s); continuing with trip_id=None", trip_err)
+
     now = req.timestamp or datetime.now(timezone.utc)
     event = SOSEvent(
         user_id=current_user.id,
-        trip_id=req.trip_id,
+        trip_id=valid_trip_id,
         status=SOSStatus.COUNTDOWN,
         trigger_type=req.trigger_type,
         confidence=confidence,
@@ -307,7 +322,7 @@ async def trigger_sos(
         confidence=event.confidence,
         triggered_at=event.triggered_at,
         tracking_token=token,
-        tracking_url=f"/track/{token}",
+        tracking_url=f"{settings.API_V1_PREFIX}/track/{token}",
         evidence_capture_requested=False,
         is_duplicate=False,
     )
@@ -402,7 +417,8 @@ async def dispatch_sos(event_id: uuid.UUID) -> None:
         event_lat, event_lon = _coords_from_geom(latest_loc.geometry if latest_loc else None)
 
         tracking_token = create_tracking_token(event.id)
-        tracking_url = f"/track/{tracking_token}"
+        tracking_url = f"{settings.API_V1_PREFIX}/track/{tracking_token}"
+
 
         notification_service = get_notification_service()
 
@@ -558,6 +574,56 @@ async def cancel_sos(
         sos_id=event.id,
         status=SOSStatus.CANCELLED.value,
         message="SOS cancelled successfully.",
+    )
+
+
+async def get_sos_status(
+    db: AsyncSession,
+    sos_id: uuid.UUID,
+    user_id: uuid.UUID,
+) -> SOSStatusResponse:
+    """
+    Owner-only status query for an SOS event.
+    Returns status, timestamps, trigger_type, confidence, and tracking_url.
+    """
+    event = await db.get(SOSEvent, sos_id)
+    if not event:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="SOS event not found.",
+        )
+
+    if event.user_id != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access this SOS event.",
+        )
+
+    token = create_tracking_token(event.id)
+    tracking_url = f"{settings.API_V1_PREFIX}/track/{token}"
+
+    evidence_req = False
+    redis = get_redis()
+    if redis:
+        try:
+            evidence_req = redis.get(f"sos:{event.id}:evidence_capture") == "true"
+        except Exception:
+            pass
+
+    if event.status == SOSStatus.ACTIVE:
+        evidence_req = True
+
+    return SOSStatusResponse(
+        sos_id=event.id,
+        status=event.status.value,
+        triggered_at=event.triggered_at,
+        resolved_at=event.resolved_at,
+        trigger_type=event.trigger_type,
+        confidence=event.confidence,
+        tracking_url=tracking_url,
+        tracking_token=token,
+        evidence_capture_requested=evidence_req,
+        notes=event.notes,
     )
 
 
