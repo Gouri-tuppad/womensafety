@@ -111,6 +111,12 @@ class Settings(BaseSettings):
     # ── Volunteers ───────────────────────────────────────────────────────
     VOLUNTEER_RADIUS_M: int = 1000
 
+    # ── Community & Geofencing ───────────────────────────────────────────
+    REPORT_DEDUPLICATION_METERS: float = 100.0
+    REPORT_DEDUPLICATION_HOURS: float = 2.0
+    GEOFENCE_LONG_STOP_MINUTES: float = 5.0
+    GEOFENCE_ALERT_COOLDOWN_SECONDS: int = 60
+
     # ── Trip monitoring ──────────────────────────────────────────────────
     TRIP_STALE_MINUTES: int = 5
     TRIP_DEVIATION_METERS: float = 200.0

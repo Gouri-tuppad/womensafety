@@ -73,10 +73,57 @@ cp .env.example .env
 uvicorn app.main:app --reload
 ```
 
-### Run Tests
+## 🧪 Testing
 
-```bash
+SafeWay includes comprehensive unit, integration, and end-to-end smoke test suites.
+
+### 1. Pytest Test Suite
+To run the automated Python test suite inside Docker or locally:
+
+```powershell
+# Inside Docker container (recommended)
+docker compose exec api pytest -v
+
+# Or quiet mode
+docker compose exec -T api pytest -q
+
+# Locally (if venv is active and DB/Redis are running)
 pytest tests/ -v
+```
+
+### 2. End-to-End Smoke Tests (`scripts/smoke.ps1`)
+The Windows PowerShell smoke test verifies all Step 1–7 backend subsystems live against `http://localhost:8000/api/v1` without stopping on single failures:
+- **Health**: DB and Redis connection health
+- **Auth**: User registration, login JWT generation, authenticated `/users/me`, and 401 unauthorized rejection
+- **Trusted Contacts**: Full CRUD (add, list, update label/priority, delete)
+- **Routing Engine**: Evening (18:00) vs Night (23:00) route computation; verifies night score < evening score, safest >= fastest, detour capped within 0–30%, sub-3-second latency, SHAP tree risk explanations, and deduplicated safe havens
+- **Safety Heatmap**: H3 spatial grid risk verification across multiple hours
+- **SOS Lifecycle**: Shake trigger countdown, 5-second false-alarm cancellation, 30-second idempotency window, auto-dispatch to active state, public tracking token, login-token rejection on `/track/{token}`, malformed payload resilience, and resolution
+- **Live Trip Monitoring**: Planned route GeoJSON ingestion, on-route location pings, off-route deviation detection (>200m), "Are you okay?" push prompt, auto-escalation to SOS on timeout, prompt dismissal via `/respond`, and 1–5 safety feedback
+- **Hazard Reports**: Crowdsourced `dark_street` reporting on Peenya roads, spatial deduplication (<100m) with corroboration trust boost, and real-time segment safety/darkness updates
+- **Child / Parent Mode**: Parent-child linking, circular geofence safe zones, exit breach detection with push alerts, and child-tailored routing
+- **Volunteer Emergency Dispatch**: Volunteer opt-in, location check-in, municipal authority verification, and proximity-based mock push notification dispatch on nearby SOS
+- **Dashboard / Fairness**: Authority-only role enforcement (200 for authority, 403 for standard users)
+- **OpenAPI Integrity**: Asserts no duplicate paths exist both with and without the `/api/v1` prefix
+- **Live Evidence**: Extracts and logs mock SMS/Push/Police dispatches directly from container logs
+
+**Run Smoke Tests:**
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\smoke.ps1
+# Or targeting a remote/custom host:
+.\scripts\smoke.ps1 -HostUrl "http://localhost:8000"
+```
+
+### 3. Unified Verification Runner (`scripts/run_all_checks.ps1`)
+Runs the full verification pipeline in sequence:
+1. `docker compose ps` (container availability and health checks)
+2. `pytest -q` (full 160-test pytest suite)
+3. `scripts/smoke.ps1` (end-to-end API test suite)
+4. Displays a consolidated summary table with pass/fail counts and final verdict.
+
+**Run All Checks:**
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\run_all_checks.ps1
 ```
 
 ### Train ML Model
