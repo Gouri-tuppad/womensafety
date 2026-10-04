@@ -176,6 +176,36 @@ cost = distance × clamp(1 + α·CrimeRisk + β·DarknessRisk + γ·IsolationRis
 - Multiplier clamped to minimum 0.5 (a segment can be at most 2× "faster" than raw distance)
 - **Safety score** of a route (0–100) = 100 − length-weighted mean risk
 
+## 🤖 ML Risk Prediction & Mitigating Reporting Bias
+
+### 1. ML Backend Architecture (Step 4)
+- **Primary Model**: Gradient-boosted decision trees via **XGBoost** (`ml/models/xgb_risk.json`).
+- **Baseline Comparison**: **Random Forest** Regressor (`ml/models/rf_risk.joblib`).
+- **Time-Based Splitting**: Data is split strictly chronologically (training on older time periods and testing on the latest ~25% of time slots) to prevent temporal data leakage. No random splitting.
+- **Performance & Metrics**: Model metrics (AUC, RMSE, baseline comparisons, feature importances) are recorded in `ml/reports/metrics.json` via `python -m app.ml.train_risk_model` (wired to `make train`).
+- **Redis-Cached Batch Inference**: `predict_risk(segment_ids, timestamp)` performs batch prediction and caches results in Redis (`ml_pred:{zone}:{time_slot}`) for sub-second routing performance.
+- **SHAP TreeExplainer**: Generates plain-English contributing factors (e.g., *"Well lit: 92% of road lit"*, *"Metro station within 300 m"*, *"Late night: very few people around"*) returned in the `risk_explanations` field of the `POST /route` response.
+
+### 2. How Environmental Features Reduce Reporting Bias
+Traditional crime-prediction and routing systems that depend exclusively on historical police incident records suffer from **severe reporting bias**:
+1. **Under-Reporting**: Low-income, marginalized, or industrial areas often have lower reporting rates due to lack of police presence, lower trust in law enforcement, or fewer reporting channels.
+2. **Over-Policing / Patrol Bias**: Higher-income commercial and residential belts often feature higher police visibility and more recorded FIRs, creating an artificial signal of higher risk despite better lighting and emergency access.
+
+SafeWay addresses this bias by grounding risk prediction primarily in **observable, objectively verifiable environmental and spatial features**:
+- **Physical Lighting**: Lamp density per 100 m and measured segment `lit_ratio`.
+- **Infrastructure Proximity**: Measured network distances to nearest police stations, hospitals, and transit hubs (metro stations and bus stops).
+- **Road Typology**: Structural road classes (e.g. isolated service/industrial lanes with compound walls vs active arterial avenues).
+- **Urban Density Proxies**: POI counts (shops, ATMs, pharmacies) providing passive natural surveillance ("eyes on the street").
+- **Temporal & Dynamic Crowd Activity**: Solar time-based darkness calculations and hourly crowd volume proxies.
+
+Because the XGBoost model learns risk relationships from these physical attributes, **segments with zero incident history still receive accurate, safety-reflective risk assessments**.
+
+### 3. Fairness Audit & Disparity Monitoring
+The fairness audit (`app/ml/fairness_audit.py`) compares model predictions across socio-economically diverse neighborhoods (e.g. Peenya's industrial core vs residential Subramanyapura) grouped by affluence proxies (amenity density, road type distributions):
+- Automatically flags disparities where mean predicted risk diverges beyond `DISPARITY_THRESHOLD = 0.15`.
+- Writes full audit metrics and pairwise comparisons to `ml/reports/fairness.json`.
+- Accessible to municipal authorities via `GET /dashboard/fairness` (requires authority role).
+
 ## ⚠️ Synthetic Data Disclaimer
 
 **All crime incident data, street lighting scores, crowd levels, and CCTV indicators

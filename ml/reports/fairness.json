@@ -1,0 +1,121 @@
+{
+  "zone": "peenya",
+  "audit_timestamp": "2026-10-04T15:22:54.533201",
+  "disparity_threshold": 0.15,
+  "hours_evaluated": [
+    10,
+    15,
+    22
+  ],
+  "neighborhoods": {
+    "industrial_core": {
+      "label": "Peenya Industrial Core",
+      "description": "Factories, warehouses, garment units along 1st/2nd Stage",
+      "affluence_proxy": "low",
+      "affluence_metrics": {
+        "segment_count": 26,
+        "amenity_density": 0.115,
+        "industrial_road_share": 0.962,
+        "residential_road_share": 0.038
+      },
+      "segment_count": 26,
+      "mean_risk_by_hour": {
+        "10": 0.2893,
+        "15": 0.2892,
+        "22": 0.6197
+      },
+      "overall_mean_risk": 0.3994
+    },
+    "metro_corridor": {
+      "label": "Peenya Metro Corridor",
+      "description": "Area around Peenya metro station, mixed commercial",
+      "affluence_proxy": "medium",
+      "affluence_metrics": {
+        "segment_count": 25,
+        "amenity_density": 0.32,
+        "industrial_road_share": 0.0,
+        "residential_road_share": 1.0
+      },
+      "segment_count": 25,
+      "mean_risk_by_hour": {
+        "10": 0.2959,
+        "15": 0.296,
+        "22": 0.6242
+      },
+      "overall_mean_risk": 0.4054
+    },
+    "dasarahalli_residential": {
+      "label": "Dasarahalli Residential",
+      "description": "Residential area near Dasarahalli, better infrastructure",
+      "affluence_proxy": "medium",
+      "affluence_metrics": {
+        "segment_count": 25,
+        "amenity_density": 0.32,
+        "industrial_road_share": 0.0,
+        "residential_road_share": 1.0
+      },
+      "segment_count": 25,
+      "mean_risk_by_hour": {
+        "10": 0.2949,
+        "15": 0.2947,
+        "22": 0.6209
+      },
+      "overall_mean_risk": 0.4035
+    }
+  },
+  "disparities": [
+    {
+      "pair": [
+        "industrial_core",
+        "metro_corridor"
+      ],
+      "labels": [
+        "Peenya Industrial Core",
+        "Peenya Metro Corridor"
+      ],
+      "affluence_proxies": [
+        "low",
+        "medium"
+      ],
+      "risk_difference": 0.006,
+      "higher_risk": "metro_corridor",
+      "flagged": false
+    },
+    {
+      "pair": [
+        "industrial_core",
+        "dasarahalli_residential"
+      ],
+      "labels": [
+        "Peenya Industrial Core",
+        "Dasarahalli Residential"
+      ],
+      "affluence_proxies": [
+        "low",
+        "medium"
+      ],
+      "risk_difference": 0.0041,
+      "higher_risk": "dasarahalli_residential",
+      "flagged": false
+    },
+    {
+      "pair": [
+        "metro_corridor",
+        "dasarahalli_residential"
+      ],
+      "labels": [
+        "Peenya Metro Corridor",
+        "Dasarahalli Residential"
+      ],
+      "affluence_proxies": [
+        "medium",
+        "medium"
+      ],
+      "risk_difference": 0.0019,
+      "higher_risk": "metro_corridor",
+      "flagged": false
+    }
+  ],
+  "any_flagged": false,
+  "methodology_note": "SafeWay's ML model uses environmental features (street lighting, road type, POI density, connectivity) alongside incident history. Environmental features are objectively measurable and do not suffer from reporting bias, ensuring that under-reported areas still receive appropriate risk scores. This audit compares predicted risk across neighborhoods to detect residual disparities."
+}

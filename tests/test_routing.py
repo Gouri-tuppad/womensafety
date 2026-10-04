@@ -59,14 +59,34 @@ def dasarahalli_to_peenya_1st_stage_south():
     }
 
 
+def _services_available() -> bool:
+    import socket
+    from urllib.parse import urlparse
+    for raw_url, def_port in [(settings.DATABASE_URL_SYNC, 5432), (settings.REDIS_URL, 6379)]:
+        try:
+            clean = raw_url.replace("postgresql+psycopg://", "http://").replace("redis://", "http://")
+            parsed = urlparse(clean)
+            host = parsed.hostname or "localhost"
+            port = parsed.port or def_port
+            with socket.create_connection((host, port), timeout=0.5):
+                pass
+        except OSError:
+            return False
+    return True
+
+
 @pytest.fixture(scope="session")
 def redis_client():
+    if not _services_available():
+        pytest.skip("PostgreSQL or Redis not running on localhost (docker compose up required for integration tests)")
     return redis.from_url(settings.REDIS_URL, decode_responses=True)
 
 
 @pytest.fixture(scope="session", autouse=True)
 def warm_peenya_slots(redis_client):
     """Ensure Peenya edge weights are precomputed for test hours 18 and 23."""
+    if not _services_available():
+        pytest.skip("PostgreSQL or Redis not running on localhost (docker compose up required for integration tests)")
     precompute_zone_weights("peenya", 23, False, settings.DATABASE_URL_SYNC, settings.REDIS_URL)
     precompute_zone_weights("peenya", 18, False, settings.DATABASE_URL_SYNC, settings.REDIS_URL)
     # Also ensure graph is loaded

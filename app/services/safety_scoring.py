@@ -688,7 +688,17 @@ def precompute_zone_weights(
 
         scores = scorer.score(features, time_ctx)
         slot_scores[osm_id] = scores
+        processed += 1
 
+    # ── Min-max normalise each risk component across the entire slot ──
+    # Raw scores cluster in narrow bands (e.g. darkness_risk 0.7-1.0 at night
+    # because Peenya OSM lighting data is sparse).  Normalisation stretches
+    # each component to [0, 1] so the cost multiplier actually differentiates
+    # safe from unsafe edges and Dijkstra can find meaningfully different routes.
+    slot_scores = _normalize_slot_scores(slot_scores)
+
+    # ── Write normalised scores to Redis ──────────────────────────────
+    for osm_id, scores in slot_scores.items():
         payload = json.dumps({
             "crime_risk": scores.crime_risk,
             "darkness_risk": scores.darkness_risk,
@@ -697,9 +707,8 @@ def precompute_zone_weights(
         })
         pipe.set(_cache_key(zone, osm_id, slot_key), payload, ex=CACHE_TTL_S * 24 * 7)
         slot_hash_data[str(osm_id)] = payload
-        processed += 1
 
-        if processed % 2000 == 0:
+        if len(slot_hash_data) % 2000 == 0:
             pipe.execute()
 
     # Flush remaining pipeline
@@ -718,3 +727,60 @@ def precompute_zone_weights(
 
     log.info("Precompute complete: %d segments, time_slot=%s", processed, slot_key)
     return processed
+
+
+def _normalize_slot_scores(slot_scores: dict[int, RiskScores]) -> dict[int, RiskScores]:
+    """
+    Min-max normalise each risk component across all segments in a time slot.
+
+    Without this, risk components (especially darkness_risk at night) cluster in
+    a narrow band because Peenya's sparse OSM lighting data makes most segments
+    look similarly dark.  The result is that the cost multiplier barely varies
+    across edges and Dijkstra returns nearly identical fastest/safest routes.
+
+    After normalisation every component spans [0, 1], giving the cost formula
+    real discriminating power.  A 5% floor/ceiling trim avoids extreme outlier
+    sensitivity.
+    """
+    if len(slot_scores) < 2:
+        return slot_scores
+
+    crimes = [s.crime_risk for s in slot_scores.values()]
+    darks  = [s.darkness_risk for s in slot_scores.values()]
+    isos   = [s.isolation_risk for s in slot_scores.values()]
+    acts   = [s.activity_score for s in slot_scores.values()]
+
+    def _minmax(vals: list[float]) -> tuple[float, float]:
+        """Return (min, max) with 5th/95th percentile trim for robustness."""
+        sv = sorted(vals)
+        n = len(sv)
+        lo = sv[max(0, int(n * 0.05))]
+        hi = sv[min(n - 1, int(n * 0.95))]
+        return (lo, hi)
+
+    def _scale(val: float, lo: float, hi: float) -> float:
+        if hi - lo < 1e-6:
+            return 0.5  # no variance → neutral
+        return max(0.0, min(1.0, (val - lo) / (hi - lo)))
+
+    c_lo, c_hi = _minmax(crimes)
+    d_lo, d_hi = _minmax(darks)
+    i_lo, i_hi = _minmax(isos)
+    a_lo, a_hi = _minmax(acts)
+
+    log.info(
+        "Normalising slot scores: crime [%.3f,%.3f] dark [%.3f,%.3f] "
+        "iso [%.3f,%.3f] act [%.3f,%.3f]",
+        c_lo, c_hi, d_lo, d_hi, i_lo, i_hi, a_lo, a_hi,
+    )
+
+    normalised: dict[int, RiskScores] = {}
+    for osm_id, s in slot_scores.items():
+        normalised[osm_id] = RiskScores(
+            crime_risk=round(_scale(s.crime_risk, c_lo, c_hi), 4),
+            darkness_risk=round(_scale(s.darkness_risk, d_lo, d_hi), 4),
+            isolation_risk=round(_scale(s.isolation_risk, i_lo, i_hi), 4),
+            activity_score=round(_scale(s.activity_score, a_lo, a_hi), 4),
+        )
+
+    return normalised

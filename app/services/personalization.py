@@ -28,6 +28,7 @@ class ProfileWeights:
     gamma: float  # IsolationRisk weight
     delta: float  # ActivityScore weight (subtracted – more activity = lower cost)
     label: str
+    max_detour_pct: float = 0.15  # max detour as fraction of fastest distance (0.30 = 30%)
 
     def __post_init__(self) -> None:
         for name, val in [("alpha", self.alpha), ("beta", self.beta),
@@ -90,6 +91,7 @@ _PROFILES: dict[str, ProfileWeights] = {
         gamma=settings.GAMMA_ISOLATION,       # 0.2 default
         delta=settings.DELTA_ACTIVITY,        # 0.1 default
         label="Adult (daytime)",
+        max_detour_pct=0.15,  # 15% detour cap for daytime adult
     ),
     "woman_night": ProfileWeights(
         # Strengthened weights on darkness and isolation – key risks for women at night
@@ -98,6 +100,7 @@ _PROFILES: dict[str, ProfileWeights] = {
         gamma=1.00,  # isolation heavily penalised
         delta=0.25,  # reward busy, active streets
         label="Woman (night)",
+        max_detour_pct=0.30,  # women at night accept up to 30% detour for safety
     ),
     "child": ProfileWeights(
         # Children need very safe, well-lit, busy routes
@@ -106,6 +109,7 @@ _PROFILES: dict[str, ProfileWeights] = {
         gamma=1.20,  # highest emphasis on avoiding isolated roads
         delta=0.30,  # reward busy streets
         label="Child",
+        max_detour_pct=0.30,  # children's routes accept up to 30% detour for safety
     ),
 }
 

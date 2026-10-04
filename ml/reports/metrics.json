@@ -1,0 +1,42 @@
+{
+  "zone": "peenya",
+  "train_rows": 5400,
+  "test_rows": 1800,
+  "split_method": "time_based (latest 25% of time_slots as test)",
+  "xgboost": {
+    "model": "xgboost",
+    "rmse": 0.03394,
+    "auc": 0.99499
+  },
+  "random_forest": {
+    "model": "random_forest",
+    "rmse": 0.0398,
+    "auc": 0.99189
+  },
+  "xgboost_vs_rf_rmse_delta": 0.00586,
+  "feature_importances": {
+    "is_dark": 0.86731,
+    "hour": 0.08194,
+    "lit_ratio": 0.02249,
+    "incident_count_500m_decayed": 0.00871,
+    "road_type_encoded": 0.00647,
+    "crowd_count": 0.00401,
+    "dist_police_m": 0.00362,
+    "day_of_week": 0.0005,
+    "lamp_density": 0.00048,
+    "dist_hospital_m": 0.00048,
+    "dist_metro_m": 0.00044,
+    "hospital_count_300m": 0.00042,
+    "building_density_proxy": 0.00039,
+    "shop_count_150m": 0.00037,
+    "dist_main_road_m": 0.00037,
+    "petrol_count_200m": 0.00035,
+    "bus_stop_count_150m": 0.00033,
+    "atm_count_150m": 0.00031,
+    "factory_gate_count_150m": 0.00031,
+    "metro_count_300m": 0.00024,
+    "police_count_300m": 0.00024,
+    "is_weekend": 0.00019,
+    "is_holiday": 0.0
+  }
+}

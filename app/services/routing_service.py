@@ -540,8 +540,8 @@ def compute_routes(
     fastest_result = _node_path_to_result(G, fastest_path, time_ctx, profile, slot_scores, seg_data_by_osmid, scorer, use_safety=False)
     safest_result = _node_path_to_result(G, safest_path, time_ctx, profile, slot_scores, seg_data_by_osmid, scorer, use_safety=True)
 
-    # Cap detour at 30% extra distance to stay realistic
-    max_allowed_dist = round(fastest_result.distance_m * 1.30, 1)
+    # Cap detour at profile-specific max extra distance to stay realistic
+    max_allowed_dist = round(fastest_result.distance_m * (1.0 + profile.max_detour_pct), 1)
     if safest_result.distance_m > max_allowed_dist:
         low = 0.0
         high = 1.0
@@ -570,6 +570,45 @@ def compute_routes(
     havens_near = _safe_havens_near_route(safest_result.polyline, haven_rows)
     comparison = _compare_routes(fastest_result, safest_result, havens_near)
 
+    # ── SHAP explanations for the safest route ────────────────────────────
+    risk_explanations: list[str] = []
+    try:
+        from app.ml.explain import explain_route
+        from app.ml.predict import _load_xgb_model
+
+        if _load_xgb_model() is not None:
+            # Build lightweight feature dicts for each safest-route segment
+            seg_features_for_shap = []
+            for seg_info in safest_result.segments:
+                osm_id = seg_info.osm_id
+                seg = seg_data_by_osmid.get(osm_id, {})
+                feat = {
+                    "hour": time_ctx.hour,
+                    "day_of_week": 5 if time_ctx.is_weekend else 0,
+                    "is_weekend": int(time_ctx.is_weekend),
+                    "is_holiday": int(time_ctx.is_holiday),
+                    "is_dark": int(time_ctx.is_dark),
+                    "lamp_density": float(seg.get("lamp_count", 0)) / max(50.0 / 100.0, 0.01),
+                    "lit_ratio": float(seg.get("lit_ratio", 0.0)),
+                    "shop_count_150m": 0, "atm_count_150m": 0,
+                    "petrol_count_200m": 0, "bus_stop_count_150m": 0,
+                    "metro_count_300m": 0, "police_count_300m": 0,
+                    "hospital_count_300m": 0, "factory_gate_count_150m": 0,
+                    "dist_main_road_m": 500.0,
+                    "dist_police_m": 2000.0, "dist_hospital_m": 2000.0,
+                    "dist_metro_m": 2000.0,
+                    "road_type_encoded": 6,
+                    "building_density_proxy": 0,
+                    "crowd_count": 0,
+                    "incident_count_500m_decayed": 0.0,
+                }
+                seg_features_for_shap.append(feat)
+
+            if seg_features_for_shap:
+                risk_explanations = explain_route(seg_features_for_shap, top_n=5)
+    except Exception as exc:
+        log.debug("SHAP explanation generation failed (non-critical): %s", exc)
+
     return {
         "zone": zone,
         "profile": profile_name,
@@ -579,6 +618,7 @@ def compute_routes(
         "routes_differ": routes_differ,
         "safe_havens_near_safest": havens_near,
         "comparison": comparison,
+        "risk_explanations": risk_explanations,
     }
 
 

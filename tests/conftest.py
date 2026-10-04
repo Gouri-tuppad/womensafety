@@ -5,8 +5,18 @@ Uses an in-memory SQLite database (via aiosqlite) for auth tests.
 Only auth-related tables (users, trusted_contacts) are created because
 PostGIS geometry types are not supported in SQLite.
 """
-
 from __future__ import annotations
+
+# Ensure compatibility between scikit-learn >=1.6 and xgboost <=2.1.4
+try:
+    from sklearn.base import ClassifierMixin, RegressorMixin
+
+    if not hasattr(RegressorMixin, "_estimator_type"):
+        RegressorMixin._estimator_type = "regressor"
+    if not hasattr(ClassifierMixin, "_estimator_type"):
+        ClassifierMixin._estimator_type = "classifier"
+except ImportError:
+    pass
 
 import asyncio
 import uuid

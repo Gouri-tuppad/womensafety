@@ -30,7 +30,7 @@ simulate_crowd: ## Simulate hourly H3 crowd counts for ZONE only
 	python -m data.simulate_crowd $(ZONE)
 
 train: ## Train the ML safety model
-	python -m app.ml.model
+	python -m app.ml.train_risk_model
 
 test: ## Run pytest suite
 	pytest tests/ -v --tb=short

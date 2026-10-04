@@ -94,6 +94,7 @@ async def route(
         routes_differ=result["routes_differ"],
         safe_havens_near_safest=result["safe_havens_near_safest"],
         comparison=result["comparison"],
+        risk_explanations=result.get("risk_explanations", []),
     )
 
 

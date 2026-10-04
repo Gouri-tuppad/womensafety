@@ -6,9 +6,12 @@ from app.api.v1.auth import router as auth_router
 from app.api.v1.health import router as health_router
 from app.api.v1.route import router as route_router
 from app.api.v1.users import router as users_router
+from app.api.v1.dashboard import router as dashboard_router
 
 router = APIRouter()
 router.include_router(auth_router, prefix="/auth", tags=["Auth"])
 router.include_router(health_router, prefix="", tags=["System"])
 router.include_router(route_router, prefix="", tags=["Routing"])
 router.include_router(users_router, prefix="/users", tags=["Users"])
+router.include_router(dashboard_router, prefix="", tags=["Dashboard"])
+
