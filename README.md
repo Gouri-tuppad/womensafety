@@ -91,28 +91,7 @@ docker compose exec -T api pytest -q
 pytest tests/ -v
 ```
 
-### 2. End-to-End Smoke Tests (`scripts/smoke.ps1`)
-The Windows PowerShell smoke test verifies all Step 1–7 backend subsystems live against `http://localhost:8000/api/v1` without stopping on single failures:
-- **Health**: DB and Redis connection health
-- **Auth**: User registration, login JWT generation, authenticated `/users/me`, and 401 unauthorized rejection
-- **Trusted Contacts**: Full CRUD (add, list, update label/priority, delete)
-- **Routing Engine**: Evening (18:00) vs Night (23:00) route computation; verifies night score < evening score, safest >= fastest, detour capped within 0–30%, sub-3-second latency, SHAP tree risk explanations, and deduplicated safe havens
-- **Safety Heatmap**: H3 spatial grid risk verification across multiple hours
-- **SOS Lifecycle**: Shake trigger countdown, 5-second false-alarm cancellation, 30-second idempotency window, auto-dispatch to active state, public tracking token, login-token rejection on `/track/{token}`, malformed payload resilience, and resolution
-- **Live Trip Monitoring**: Planned route GeoJSON ingestion, on-route location pings, off-route deviation detection (>200m), "Are you okay?" push prompt, auto-escalation to SOS on timeout, prompt dismissal via `/respond`, and 1–5 safety feedback
-- **Hazard Reports**: Crowdsourced `dark_street` reporting on Peenya roads, spatial deduplication (<100m) with corroboration trust boost, and real-time segment safety/darkness updates
-- **Child / Parent Mode**: Parent-child linking, circular geofence safe zones, exit breach detection with push alerts, and child-tailored routing
-- **Volunteer Emergency Dispatch**: Volunteer opt-in, location check-in, municipal authority verification, and proximity-based mock push notification dispatch on nearby SOS
-- **Dashboard / Fairness**: Authority-only role enforcement (200 for authority, 403 for standard users)
-- **OpenAPI Integrity**: Asserts no duplicate paths exist both with and without the `/api/v1` prefix
-- **Live Evidence**: Extracts and logs mock SMS/Push/Police dispatches directly from container logs
 
-**Run Smoke Tests:**
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\smoke.ps1
-# Or targeting a remote/custom host:
-.\scripts\smoke.ps1 -HostUrl "http://localhost:8000"
-```
 
 ### 3. Unified Verification Runner (`scripts/run_all_checks.ps1`)
 Runs the full verification pipeline in sequence:
@@ -126,62 +105,6 @@ Runs the full verification pipeline in sequence:
 powershell -ExecutionPolicy Bypass -File .\scripts\run_all_checks.ps1
 ```
 
-### Train ML Model
-
-```bash
-python -m app.ml.model          # train + evaluate
-python -m app.ml.model --shap   # with SHAP explanations
-```
-
-## 📡 API Endpoints (Step 3: Safety Scoring & Routing)
-
-### 1. Compute Route (Fastest vs Safest)
-```http
-POST /route
-Content-Type: application/json
-
-{
-  "origin": {"lat": 13.0330, "lon": 77.5332},
-  "destination": {"lat": 13.0220, "lon": 77.5034},
-  "depart_time": "2026-10-02T23:00:00+05:30",
-  "profile": "woman_night"
-}
-```
-
-Response includes:
-- `fastest`: Distance, duration, safety score, colour-coded segments, polyline
-- `safest`: Distance, duration, safety score, colour-coded segments, polyline
-- `routes_differ`: `true` when safest navigates away from high-risk streets
-- `safe_havens_near_safest`: Hospitals, police stations, metro & bus stops within 300 m
-- `comparison`: Summary statistics (e.g., `"+2.6% longer, 1.6x more lit, +8.2 safety pts"`)
-
-*(Also available under `/api/v1/route`)*
-
-### 2. Safety Heatmap Grid (H3 Resolution 9)
-```http
-GET /safety/heatmap?zone=peenya&hour=23
-```
-Returns an H3 risk grid (resolution 9) with `risk_score` (0–1 composite), `crime_risk`, `darkness_risk`, `isolation_risk`, and `crowd_count`, designed for time-slider UI map overlays.
-
-*(Also available under `/api/v1/safety/heatmap`)*
-
-### 3. Edge Weight Precomputation
-```http
-GET /safety/precompute?hour=23&is_weekend=false
-```
-Precomputes and caches safety edge weights in Redis for sub-second routing performance (< 100 ms).
-
-## ⚙️ Configuration
-
-All settings via environment variables (see `.env.example`):
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ZONE` | `peenya` | Active zone: `peenya` (Scope: Peenya only) |
-| `ALPHA_CRIME` | `0.4` | Default CrimeRisk weight in safety formula |
-| `BETA_DARKNESS` | `0.3` | Default DarknessRisk weight |
-| `GAMMA_ISOLATION` | `0.2` | Default IsolationRisk weight |
-| `DELTA_ACTIVITY` | `0.1` | Default ActivityScore weight (reduces cost) |
 
 ## 🗺️ Demo Zone & Fixture Routes (Peenya Only)
 
@@ -192,7 +115,7 @@ All settings via environment variables (see `.env.example`):
 - **Character**: Factories, warehouses, garment units, long compound walls, sparse lighting
 - **Shift Changes**: Peak crowd and factory shift turnover (~06:00–07:00, 14:00–15:00, 22:00–23:00)
 
-### Demo Route 1: Bagalagunte to Peenya 1st Stage South-East (Across Industrial Area)
+### Demo Route : Bagalagunte to Peenya 1st Stage South-East (Across Industrial Area)
 - **Origin**: `(13.0450, 77.5050)` [Bagalagunte / MEI Colony]
 - **Destination**: `(13.0150, 77.5300)` [Peenya 1st Stage South-East]
 - **Behavior at 11 PM (23:00)**:
@@ -200,64 +123,8 @@ All settings via environment variables (see `.env.example`):
   - **Safest**: 6,395.9 m (safety score 67.7) – detours along well-lit, active arterial corridors.
   - **Metrics**: **+11.9% longer**, **+11.5 safety pts gain**, 59% lower crime exposure, avoids isolated roads (0% vs 15%), 1 police station nearby.
 
-### Demo Route 2: Dasarahalli Metro to Peenya 1st Stage South (Across Industrial Area)
-- **Origin**: `(13.0440, 77.5130)` [Dasarahalli Metro]
-- **Destination**: `(13.0120, 77.5320)` [Peenya 1st Stage South]
-- **Behavior at 11 PM (23:00)**:
-  - **Fastest**: 4,920.3 m (safety score 50.6) – traverses high-crime, dark factory roads.
-  - **Safest**: 5,410.3 m (safety score 65.0) – navigates around dangerous segments via active corridors.
-  - **Metrics**: **+10.0% longer**, **+14.4 safety pts gain**, 48% lower crime exposure, 1 police station nearby.
+<img width="1934" height="838" alt="Screenshot 2026-10-07 172550" src="https://github.com/user-attachments/assets/4e79f5de-c2c0-4b13-85e0-d07737eab928" />
 
-### Additional Peenya Route: Peenya Metro to Peenya 2nd Stage (NTTF / 12th Cross)
-- **Origin**: `(13.0330, 77.5332)` [Peenya Metro]
-- **Destination**: `(13.0220, 77.5034)` [Peenya 2nd Stage]
-- **Behavior**: Safest route differs at 11 PM vs 6 PM due to nightfall and crowd shifts.
-
-## 📊 Safety Cost Formula
-
-```
-cost = distance × clamp(1 + α·CrimeRisk + β·DarknessRisk + γ·IsolationRisk − δ·ActivityScore, min=0.5)
-```
-
-- All four inputs normalised to [0, 1]
-- Multiplier clamped to minimum 0.5 (a segment can be at most 2× "faster" than raw distance)
-- **Safety score** of a route (0–100) = 100 − length-weighted mean risk
-
-## 🤖 ML Risk Prediction & Mitigating Reporting Bias
-
-### 1. ML Backend Architecture (Step 4)
-- **Primary Model**: Gradient-boosted decision trees via **XGBoost** (`ml/models/xgb_risk.json`).
-- **Baseline Comparison**: **Random Forest** Regressor (`ml/models/rf_risk.joblib`).
-- **Time-Based Splitting**: Data is split strictly chronologically (training on older time periods and testing on the latest ~25% of time slots) to prevent temporal data leakage. No random splitting.
-- **Performance & Metrics**: Model metrics (AUC, RMSE, baseline comparisons, feature importances) are recorded in `ml/reports/metrics.json` via `python -m app.ml.train_risk_model` (wired to `make train`).
-- **Redis-Cached Batch Inference**: `predict_risk(segment_ids, timestamp)` performs batch prediction and caches results in Redis (`ml_pred:{zone}:{time_slot}`) for sub-second routing performance.
-- **SHAP TreeExplainer**: Generates plain-English contributing factors (e.g., *"Well lit: 92% of road lit"*, *"Metro station within 300 m"*, *"Late night: very few people around"*) returned in the `risk_explanations` field of the `POST /route` response.
-
-### 2. How Environmental Features Reduce Reporting Bias
-Traditional crime-prediction and routing systems that depend exclusively on historical police incident records suffer from **severe reporting bias**:
-1. **Under-Reporting**: Low-income, marginalized, or industrial areas often have lower reporting rates due to lack of police presence, lower trust in law enforcement, or fewer reporting channels.
-2. **Over-Policing / Patrol Bias**: Higher-income commercial and residential belts often feature higher police visibility and more recorded FIRs, creating an artificial signal of higher risk despite better lighting and emergency access.
-
-SafeWay addresses this bias by grounding risk prediction primarily in **observable, objectively verifiable environmental and spatial features**:
-- **Physical Lighting**: Lamp density per 100 m and measured segment `lit_ratio`.
-- **Infrastructure Proximity**: Measured network distances to nearest police stations, hospitals, and transit hubs (metro stations and bus stops).
-- **Road Typology**: Structural road classes (e.g. isolated service/industrial lanes with compound walls vs active arterial avenues).
-- **Urban Density Proxies**: POI counts (shops, ATMs, pharmacies) providing passive natural surveillance ("eyes on the street").
-- **Temporal & Dynamic Crowd Activity**: Solar time-based darkness calculations and hourly crowd volume proxies.
-
-Because the XGBoost model learns risk relationships from these physical attributes, **segments with zero incident history still receive accurate, safety-reflective risk assessments**.
-
-### 3. Fairness Audit & Disparity Monitoring
-The fairness audit (`app/ml/fairness_audit.py`) compares model predictions across socio-economically diverse neighborhoods (e.g. Peenya's industrial core vs residential Subramanyapura) grouped by affluence proxies (amenity density, road type distributions):
-- Automatically flags disparities where mean predicted risk diverges beyond `DISPARITY_THRESHOLD = 0.15`.
-- Writes full audit metrics and pairwise comparisons to `ml/reports/fairness.json`.
-- Accessible to municipal authorities via `GET /dashboard/fairness` (requires authority role).
-
-## ⚠️ Synthetic Data Disclaimer
-
-**All crime incident data, street lighting scores, crowd levels, and CCTV indicators
-are SYNTHETIC / SIMULATED.**  They are generated programmatically to reflect realistic
-spatial and temporal patterns for demonstration purposes.  No real crime data is used.
 
 ## 🧪 Tech Stack
 
